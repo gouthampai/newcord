@@ -2,11 +2,13 @@ package handlers
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 
 	"github.com/gocql/gocql"
 	"github.com/gorilla/mux"
 	"newcord/api/internal/db"
+	"newcord/api/internal/middleware"
 	"newcord/api/internal/models"
 )
 
@@ -31,7 +33,20 @@ func (h *ServerHandler) CreateServer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID := r.Context().Value("user_id").(gocql.UUID)
+	if len(req.Name) < 1 || len(req.Name) > 100 {
+		http.Error(w, "Server name must be 1-100 characters", http.StatusBadRequest)
+		return
+	}
+	if len(req.Description) > 1024 {
+		http.Error(w, "Description must be at most 1024 characters", http.StatusBadRequest)
+		return
+	}
+
+	userID, ok := middleware.GetUserID(r)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
 
 	server := &models.Server{
 		Name:        req.Name,
@@ -50,7 +65,9 @@ func (h *ServerHandler) CreateServer(w http.ResponseWriter, r *http.Request) {
 		UserID:   userID,
 		Role:     "owner",
 	}
-	h.serverRepo.AddMember(member)
+	if err := h.serverRepo.AddMember(member); err != nil {
+		log.Printf("Warning: failed to add owner as member for server %s: %v", server.ID, err)
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
@@ -83,7 +100,20 @@ func (h *ServerHandler) UpdateServer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var updateReq models.Server
+	userID, ok := middleware.GetUserID(r)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Check if user is owner or admin
+	member, err := h.serverRepo.GetMember(serverID, userID)
+	if err != nil || (member.Role != "owner" && member.Role != "admin") {
+		http.Error(w, "Forbidden: insufficient permissions", http.StatusForbidden)
+		return
+	}
+
+	var updateReq CreateServerRequest
 	if err := json.NewDecoder(r.Body).Decode(&updateReq); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
@@ -96,9 +126,17 @@ func (h *ServerHandler) UpdateServer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if updateReq.Name != "" {
+		if len(updateReq.Name) > 100 {
+			http.Error(w, "Server name must be at most 100 characters", http.StatusBadRequest)
+			return
+		}
 		server.Name = updateReq.Name
 	}
 	if updateReq.Description != "" {
+		if len(updateReq.Description) > 1024 {
+			http.Error(w, "Description must be at most 1024 characters", http.StatusBadRequest)
+			return
+		}
 		server.Description = updateReq.Description
 	}
 	if updateReq.IconURL != "" {
@@ -122,6 +160,23 @@ func (h *ServerHandler) DeleteServer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	userID, ok := middleware.GetUserID(r)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Only owner can delete a server
+	server, err := h.serverRepo.GetByID(serverID)
+	if err != nil {
+		http.Error(w, "Server not found", http.StatusNotFound)
+		return
+	}
+	if server.OwnerID != userID {
+		http.Error(w, "Forbidden: only the server owner can delete it", http.StatusForbidden)
+		return
+	}
+
 	if err := h.serverRepo.Delete(serverID); err != nil {
 		http.Error(w, "Failed to delete server", http.StatusInternalServerError)
 		return
@@ -135,6 +190,18 @@ func (h *ServerHandler) GetMembers(w http.ResponseWriter, r *http.Request) {
 	serverID, err := gocql.ParseUUID(vars["id"])
 	if err != nil {
 		http.Error(w, "Invalid server ID", http.StatusBadRequest)
+		return
+	}
+
+	userID, ok := middleware.GetUserID(r)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Verify requester is a member
+	if _, err := h.serverRepo.GetMember(serverID, userID); err != nil {
+		http.Error(w, "Forbidden: not a server member", http.StatusForbidden)
 		return
 	}
 
@@ -153,6 +220,19 @@ func (h *ServerHandler) AddMember(w http.ResponseWriter, r *http.Request) {
 	serverID, err := gocql.ParseUUID(vars["id"])
 	if err != nil {
 		http.Error(w, "Invalid server ID", http.StatusBadRequest)
+		return
+	}
+
+	userID, ok := middleware.GetUserID(r)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Verify requester is owner or admin to add members
+	requester, err := h.serverRepo.GetMember(serverID, userID)
+	if err != nil || (requester.Role != "owner" && requester.Role != "admin") {
+		http.Error(w, "Forbidden: insufficient permissions to add members", http.StatusForbidden)
 		return
 	}
 

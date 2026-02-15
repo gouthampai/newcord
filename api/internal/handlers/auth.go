@@ -3,12 +3,18 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"regexp"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"golang.org/x/crypto/bcrypt"
 	"newcord/api/internal/db"
 	"newcord/api/internal/models"
-	"golang.org/x/crypto/bcrypt"
+)
+
+var (
+	usernameRegex = regexp.MustCompile(`^[a-zA-Z0-9_]+$`)
+	emailRegex    = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
 )
 
 type AuthHandler struct {
@@ -36,8 +42,30 @@ type LoginRequest struct {
 }
 
 type AuthResponse struct {
-	Token string        `json:"token"`
-	User  *models.User  `json:"user"`
+	Token string       `json:"token"`
+	User  *models.User `json:"user"`
+}
+
+func (req *RegisterRequest) Validate() string {
+	if len(req.Username) < 3 || len(req.Username) > 32 {
+		return "username must be 3-32 characters"
+	}
+	if !usernameRegex.MatchString(req.Username) {
+		return "username can only contain letters, numbers, and underscores"
+	}
+	if !emailRegex.MatchString(req.Email) {
+		return "invalid email format"
+	}
+	if len(req.Password) < 8 {
+		return "password must be at least 8 characters"
+	}
+	if len(req.Password) > 128 {
+		return "password must be at most 128 characters"
+	}
+	if len(req.DisplayName) > 64 {
+		return "display name must be at most 64 characters"
+	}
+	return ""
 }
 
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
@@ -47,9 +75,24 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if msg := req.Validate(); msg != "" {
+		http.Error(w, msg, http.StatusBadRequest)
+		return
+	}
+
+	// Check uniqueness
+	if existing, _ := h.userRepo.GetByEmail(req.Email); existing != nil {
+		http.Error(w, "Email already registered", http.StatusConflict)
+		return
+	}
+	if existing, _ := h.userRepo.GetByUsername(req.Username); existing != nil {
+		http.Error(w, "Username already taken", http.StatusConflict)
+		return
+	}
+
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
-		http.Error(w, "Failed to hash password", http.StatusInternalServerError)
+		http.Error(w, "Failed to process registration", http.StatusInternalServerError)
 		return
 	}
 
@@ -73,6 +116,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(AuthResponse{
 		Token: token,
 		User:  user,
@@ -83,6 +127,11 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	var req LoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.Email == "" || req.Password == "" {
+		http.Error(w, "Email and password are required", http.StatusBadRequest)
 		return
 	}
 

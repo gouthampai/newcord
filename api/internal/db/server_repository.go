@@ -104,6 +104,21 @@ func (r *ServerRepository) GetMembers(serverID gocql.UUID) ([]*models.Member, er
 	return members, nil
 }
 
+func (r *ServerRepository) GetMember(serverID, userID gocql.UUID) (*models.Member, error) {
+	var member models.Member
+	query := `SELECT server_id, user_id, nickname, role, joined_at, updated_at
+		FROM members WHERE server_id = ? AND user_id = ?`
+
+	err := r.db.Session.Query(query, serverID, userID).Scan(
+		&member.ServerID, &member.UserID, &member.Nickname,
+		&member.Role, &member.JoinedAt, &member.UpdatedAt,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("member not found: %w", err)
+	}
+	return &member, nil
+}
+
 func (r *ServerRepository) RemoveMember(serverID, userID gocql.UUID) error {
 	query := `DELETE FROM members WHERE server_id = ? AND user_id = ?`
 	return r.db.Session.Query(query, serverID, userID).Exec()

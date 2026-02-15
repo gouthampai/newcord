@@ -53,7 +53,7 @@ func (r *UserRepository) GetByID(id gocql.UUID) (*models.User, error) {
 func (r *UserRepository) GetByUsername(username string) (*models.User, error) {
 	var user models.User
 	query := `SELECT id, username, email, password_hash, display_name, avatar_url,
-		status, bio, created_at, updated_at FROM users WHERE username = ? ALLOW FILTERING`
+		status, bio, created_at, updated_at FROM users WHERE username = ?`
 
 	err := r.db.Session.Query(query, username).Scan(
 		&user.ID, &user.Username, &user.Email, &user.PasswordHash,
@@ -71,7 +71,7 @@ func (r *UserRepository) GetByUsername(username string) (*models.User, error) {
 func (r *UserRepository) GetByEmail(email string) (*models.User, error) {
 	var user models.User
 	query := `SELECT id, username, email, password_hash, display_name, avatar_url,
-		status, bio, created_at, updated_at FROM users WHERE email = ? ALLOW FILTERING`
+		status, bio, created_at, updated_at FROM users WHERE email = ?`
 
 	err := r.db.Session.Query(query, email).Scan(
 		&user.ID, &user.Username, &user.Email, &user.PasswordHash,

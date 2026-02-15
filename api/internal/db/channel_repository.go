@@ -51,7 +51,7 @@ func (r *ChannelRepository) GetByServer(serverID gocql.UUID) ([]*models.Channel,
 	var channels []*models.Channel
 
 	query := `SELECT id, server_id, name, description, type, position,
-		created_at, updated_at FROM channels WHERE server_id = ? ALLOW FILTERING`
+		created_at, updated_at FROM channels WHERE server_id = ?`
 
 	iter := r.db.Session.Query(query, serverID).Iter()
 	defer iter.Close()

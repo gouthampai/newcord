@@ -13,21 +13,20 @@ type CassandraDB struct {
 }
 
 func NewCassandraDB(hosts []string, keyspace string) (*CassandraDB, error) {
-	// First connect without keyspace to create it if needed
-	cluster := gocql.NewCluster(hosts...)
-	cluster.Consistency = gocql.Quorum
-	cluster.ProtoVersion = 4
-	cluster.ConnectTimeout = time.Second * 10
-	cluster.Timeout = time.Second * 10
+	// Use a simple cluster config for keyspace creation (no token-aware policy)
+	initCluster := gocql.NewCluster(hosts...)
+	initCluster.Consistency = gocql.Quorum
+	initCluster.ProtoVersion = 4
+	initCluster.ConnectTimeout = time.Second * 10
+	initCluster.Timeout = time.Second * 10
 
-	session, err := cluster.CreateSession()
+	session, err := initCluster.CreateSession()
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to Cassandra: %w", err)
 	}
 
 	log.Printf("Connected to Cassandra cluster at %v", hosts)
 
-	// Create keyspace if it doesn't exist
 	createKeyspace := fmt.Sprintf(
 		`CREATE KEYSPACE IF NOT EXISTS %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1}`,
 		keyspace,
@@ -38,12 +37,19 @@ func NewCassandraDB(hosts []string, keyspace string) (*CassandraDB, error) {
 	}
 
 	log.Printf("Keyspace %s created/verified", keyspace)
-
-	// Close the initial session
 	session.Close()
 
-	// Reconnect with the keyspace set
+	// Create the main session with full config including token-aware policy
+	cluster := gocql.NewCluster(hosts...)
 	cluster.Keyspace = keyspace
+	cluster.Consistency = gocql.Quorum
+	cluster.ProtoVersion = 4
+	cluster.ConnectTimeout = time.Second * 10
+	cluster.Timeout = time.Second * 10
+	cluster.NumConns = 4
+	cluster.PoolConfig.HostSelectionPolicy = gocql.TokenAwareHostPolicy(gocql.RoundRobinHostPolicy())
+	cluster.RetryPolicy = &gocql.ExponentialBackoffRetryPolicy{NumRetries: 3}
+
 	session, err = cluster.CreateSession()
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to keyspace: %w", err)
@@ -135,11 +141,16 @@ func (db *CassandraDB) InitSchema() error {
 			custom_status text,
 			last_seen_at timestamp
 		)`,
+
+		// Secondary indexes for efficient lookups (materialized views require Cassandra config)
+		// indexes on users(username) and users(email) already created above
+		// Additional index for member lookups by user_id
+		`CREATE INDEX IF NOT EXISTS ON members (user_id)`,
 	}
 
 	for _, query := range queries {
 		if err := db.Session.Query(query).Exec(); err != nil {
-			return fmt.Errorf("failed to execute query: %w", err)
+			return fmt.Errorf("failed to execute schema query: %w", err)
 		}
 	}
 

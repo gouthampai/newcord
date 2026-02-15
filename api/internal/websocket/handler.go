@@ -7,22 +7,16 @@ import (
 	"github.com/gocql/gocql"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
+	"newcord/api/internal/middleware"
 )
 
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-	CheckOrigin: func(r *http.Request) bool {
-		return true
-	},
-}
-
 type WSHandler struct {
-	Hub *Hub
+	Hub            *Hub
+	AllowedOrigins []string
 }
 
-func NewWSHandler(hub *Hub) *WSHandler {
-	return &WSHandler{Hub: hub}
+func NewWSHandler(hub *Hub, allowedOrigins []string) *WSHandler {
+	return &WSHandler{Hub: hub, AllowedOrigins: allowedOrigins}
 }
 
 func (h *WSHandler) ServeWS(w http.ResponseWriter, r *http.Request) {
@@ -33,10 +27,24 @@ func (h *WSHandler) ServeWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID, ok := r.Context().Value("user_id").(gocql.UUID)
+	userID, ok := middleware.GetUserID(r)
 	if !ok {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
+	}
+
+	upgrader := websocket.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+		CheckOrigin: func(r *http.Request) bool {
+			origin := r.Header.Get("Origin")
+			for _, allowed := range h.AllowedOrigins {
+				if origin == allowed {
+					return true
+				}
+			}
+			return false
+		},
 	}
 
 	conn, err := upgrader.Upgrade(w, r, nil)
@@ -48,7 +56,7 @@ func (h *WSHandler) ServeWS(w http.ResponseWriter, r *http.Request) {
 	client := &Client{
 		Hub:      h.Hub,
 		Conn:     conn,
-		Send:     make(chan []byte, 256),
+		Send:     make(chan []byte, 1024),
 		UserID:   userID,
 		ServerID: serverID,
 	}

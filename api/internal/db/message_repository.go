@@ -33,6 +33,9 @@ func (r *MessageRepository) GetByID(channelID, messageID gocql.UUID) (*models.Me
 	var message models.Message
 	query := `SELECT id, channel_id, user_id, content, type, attachments,
 		edited_at, created_at FROM messages WHERE channel_id = ? AND id = ? ALLOW FILTERING`
+	// Note: ALLOW FILTERING is needed here because id is not the first clustering key.
+	// This is acceptable for single-row lookups. For high-traffic scenarios, consider
+	// adding a secondary index on (channel_id, id).
 
 	err := r.db.Session.Query(query, channelID, messageID).Scan(
 		&message.ID, &message.ChannelID, &message.UserID, &message.Content,

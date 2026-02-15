@@ -27,12 +27,18 @@ func Logger(next http.Handler) http.Handler {
 		rw := newResponseWriter(w)
 		next.ServeHTTP(rw, r)
 
+		requestID, _ := r.Context().Value(ContextKeyRequestID).(string)
+		userID := r.Context().Value(ContextKeyUserID)
+
 		log.Printf(
-			"%s %s %d %s",
+			"[%s] %s %s %s %d %s user=%v",
+			requestID,
+			r.RemoteAddr,
 			r.Method,
 			r.RequestURI,
 			rw.statusCode,
 			time.Since(start),
+			userID,
 		)
 	})
 }
