@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: cassandra
+  namespace: newcord
+  labels:
+    app: cassandra
+spec:
+  clusterIP: None
+  ports:
+    - port: 9042
+      name: cql
+  selector:
+    app: cassandra
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cassandra-external
+  namespace: newcord
+  labels:
+    app: cassandra
+spec:
+  type: NodePort
+  ports:
+    - port: 9042
+      targetPort: 9042
+      nodePort: 30042
+      name: cql
+  selector:
+    app: cassandra
