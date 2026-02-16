@@ -1,18 +1,33 @@
 import { useCallback } from 'react'
 import { useApp } from '../contexts/AppContext'
 import { useWebSocket } from '../hooks/useWebSocket'
-import type { WSMessage, Message } from '../types'
+import type { WSMessage } from '../types'
 import ServerSidebar from '../components/ServerSidebar'
 import ChannelSidebar from '../components/ChannelSidebar'
 import MessageArea from '../components/MessageArea'
 import MemberList from '../components/MemberList'
 
 export default function MainLayout() {
-  const { currentServer, currentChannel } = useApp()
+  const { currentServer, currentChannel, setOnlineUsers } = useApp()
 
-  const handleWSMessage = useCallback((_msg: WSMessage) => {
-    // WebSocket messages are handled by MessageArea via a shared callback
-  }, [])
+  const handleWSMessage = useCallback((msg: WSMessage) => {
+    if (msg.type === 'presence_list') {
+      const userIds = msg.data.user_ids as string[] | undefined
+      setOnlineUsers(new Set(userIds || []))
+    } else if (msg.type === 'presence_update') {
+      const userId = msg.data.user_id as string
+      const status = msg.data.status as string
+      setOnlineUsers(prev => {
+        const next = new Set(prev)
+        if (status === 'online') {
+          next.add(userId)
+        } else {
+          next.delete(userId)
+        }
+        return next
+      })
+    }
+  }, [setOnlineUsers])
 
   useWebSocket(currentServer?.id ?? null, handleWSMessage)
 

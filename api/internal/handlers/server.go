@@ -13,11 +13,12 @@ import (
 )
 
 type ServerHandler struct {
-	serverRepo *db.ServerRepository
+	serverRepo  *db.ServerRepository
+	channelRepo *db.ChannelRepository
 }
 
-func NewServerHandler(serverRepo *db.ServerRepository) *ServerHandler {
-	return &ServerHandler{serverRepo: serverRepo}
+func NewServerHandler(serverRepo *db.ServerRepository, channelRepo *db.ChannelRepository) *ServerHandler {
+	return &ServerHandler{serverRepo: serverRepo, channelRepo: channelRepo}
 }
 
 type CreateServerRequest struct {
@@ -67,6 +68,16 @@ func (h *ServerHandler) CreateServer(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := h.serverRepo.AddMember(member); err != nil {
 		log.Printf("Warning: failed to add owner as member for server %s: %v", server.ID, err)
+	}
+
+	defaultChannels := []models.Channel{
+		{ServerID: server.ID, Name: "general", Type: "text", Position: 0},
+		{ServerID: server.ID, Name: "voice-chat", Type: "voice", Position: 1},
+	}
+	for i := range defaultChannels {
+		if err := h.channelRepo.Create(&defaultChannels[i]); err != nil {
+			log.Printf("Warning: failed to create default channel %q for server %s: %v", defaultChannels[i].Name, server.ID, err)
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")

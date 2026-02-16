@@ -27,7 +27,7 @@ func NewRouter(
 
 	authHandler := NewAuthHandler(userRepo, jwtSecret)
 	userHandler := NewUserHandler(userRepo)
-	serverHandler := NewServerHandler(serverRepo)
+	serverHandler := NewServerHandler(serverRepo, channelRepo)
 	channelHandler := NewChannelHandler(channelRepo, serverRepo)
 	messageHandler := NewMessageHandler(messageRepo, channelRepo, serverRepo, wsHub)
 	inviteHandler := NewInviteHandler(inviteRepo, serverRepo)

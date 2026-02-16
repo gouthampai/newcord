@@ -91,13 +91,11 @@ export default function ChannelSidebar() {
             <div className="w-8 h-8 rounded-full bg-blurple flex items-center justify-center text-white text-xs font-bold">
               {user?.display_name?.[0]?.toUpperCase() || user?.username?.[0]?.toUpperCase() || '?'}
             </div>
-            <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-dark-primary
-              ${user?.status === 'online' ? 'bg-green' : user?.status === 'away' ? 'bg-yellow' : user?.status === 'dnd' ? 'bg-red' : 'bg-text-muted'}`}
-            />
+            <div className="absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-dark-primary bg-green" />
           </div>
           <div className="flex-1 min-w-0">
             <div className="text-sm font-medium text-text-primary truncate">{user?.display_name || user?.username}</div>
-            <div className="text-xs text-text-muted truncate">{user?.status || 'offline'}</div>
+            <div className="text-xs text-text-muted truncate">Online</div>
           </div>
           <Settings
             size={18}

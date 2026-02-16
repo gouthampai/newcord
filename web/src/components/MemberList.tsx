@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useApp } from '../contexts/AppContext'
+import { useAuth } from '../contexts/AuthContext'
 import type { User } from '../types'
 import * as api from '../services/api'
 
 export default function MemberList() {
-  const { members } = useApp()
+  const { members, onlineUsers } = useApp()
+  const { user: currentUser } = useAuth()
   const [users, setUsers] = useState<Record<string, User>>({})
 
   useEffect(() => {
@@ -17,11 +19,19 @@ export default function MemberList() {
     })
   }, [members]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const isOnline = (userId: string) => onlineUsers.has(userId) || userId === currentUser?.id
+
+  const sortOnlineFirst = (a: typeof members[0], b: typeof members[0]) => {
+    const aOnline = isOnline(a.user_id) ? 0 : 1
+    const bOnline = isOnline(b.user_id) ? 0 : 1
+    return aOnline - bOnline
+  }
+
   const roleGroups = {
-    owner: members.filter(m => m.role === 'owner'),
-    admin: members.filter(m => m.role === 'admin'),
-    moderator: members.filter(m => m.role === 'moderator'),
-    member: members.filter(m => m.role === 'member'),
+    owner: members.filter(m => m.role === 'owner').sort(sortOnlineFirst),
+    admin: members.filter(m => m.role === 'admin').sort(sortOnlineFirst),
+    moderator: members.filter(m => m.role === 'moderator').sort(sortOnlineFirst),
+    member: members.filter(m => m.role === 'member').sort(sortOnlineFirst),
   }
 
   const roleLabels: Record<string, string> = {
@@ -52,7 +62,7 @@ export default function MemberList() {
                         {(u?.display_name || u?.username || '?')[0]?.toUpperCase()}
                       </div>
                       <div className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-dark-secondary
-                        ${u?.status === 'online' ? 'bg-green' : u?.status === 'away' ? 'bg-yellow' : u?.status === 'dnd' ? 'bg-red' : 'bg-text-muted'}`}
+                        ${isOnline(m.user_id) ? 'bg-green' : 'bg-text-muted'}`}
                       />
                     </div>
                     <div className="min-w-0 flex-1">
