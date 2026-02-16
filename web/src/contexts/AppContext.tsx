@@ -17,6 +17,7 @@ interface AppContextType {
   refreshChannels: (serverId: string) => Promise<void>
   refreshMembers: (serverId: string) => Promise<void>
   addServer: (server: Server) => void
+  clearCurrentServer: () => void
   setOnlineUsers: React.Dispatch<React.SetStateAction<Set<string>>>
 }
 
@@ -95,6 +96,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setServers(prev => [...prev, server])
   }, [])
 
+  const clearCurrentServer = useCallback(() => {
+    setCurrentServer(null)
+    setChannels([])
+    setCurrentChannel(null)
+    setMembers([])
+    setOnlineUsers(new Set())
+    localStorage.removeItem('lastServerId')
+    localStorage.removeItem('lastChannelId')
+  }, [])
+
   const { user } = useAuth()
 
   useEffect(() => {
@@ -120,7 +131,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     <AppContext.Provider value={{
       servers, currentServer, channels, currentChannel, members, onlineUsers,
       setServers, selectServer, selectChannel, refreshServers,
-      refreshChannels, refreshMembers, addServer, setOnlineUsers,
+      refreshChannels, refreshMembers, addServer, clearCurrentServer, setOnlineUsers,
     }}>
       {children}
     </AppContext.Provider>

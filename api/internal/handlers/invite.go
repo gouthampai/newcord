@@ -3,6 +3,7 @@ package handlers
 import (
 	"crypto/rand"
 	"encoding/json"
+	"log"
 	"math/big"
 	"net/http"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"newcord/api/internal/db"
 	"newcord/api/internal/middleware"
 	"newcord/api/internal/models"
+	"newcord/api/internal/websocket"
 )
 
 const inviteCodeChars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"
@@ -19,10 +21,26 @@ const inviteCodeChars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz234567
 type InviteHandler struct {
 	inviteRepo *db.InviteRepository
 	serverRepo *db.ServerRepository
+	wsHub      *websocket.Hub
 }
 
-func NewInviteHandler(inviteRepo *db.InviteRepository, serverRepo *db.ServerRepository) *InviteHandler {
-	return &InviteHandler{inviteRepo: inviteRepo, serverRepo: serverRepo}
+func NewInviteHandler(inviteRepo *db.InviteRepository, serverRepo *db.ServerRepository, wsHub *websocket.Hub) *InviteHandler {
+	return &InviteHandler{inviteRepo: inviteRepo, serverRepo: serverRepo, wsHub: wsHub}
+}
+
+func (h *InviteHandler) broadcastWS(serverID gocql.UUID, msgType string, data interface{}) {
+	wsMsg := websocket.Message{
+		Type:      msgType,
+		ServerID:  serverID.String(),
+		Data:      data,
+		Timestamp: time.Now(),
+	}
+	payload, err := json.Marshal(wsMsg)
+	if err != nil {
+		log.Printf("error marshaling WS broadcast: %v", err)
+		return
+	}
+	h.wsHub.BroadcastToServer(serverID, payload)
 }
 
 type CreateInviteRequest struct {
@@ -143,6 +161,11 @@ func (h *InviteHandler) JoinViaInvite(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to join server", http.StatusInternalServerError)
 		return
 	}
+
+	h.broadcastWS(invite.ServerID, "member_join", map[string]string{
+		"server_id": invite.ServerID.String(),
+		"user_id":   userID.String(),
+	})
 
 	// Increment uses
 	_ = h.inviteRepo.IncrementUses(invite.ID, invite.Uses)

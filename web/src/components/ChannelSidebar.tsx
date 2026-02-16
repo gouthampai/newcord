@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext'
 import CreateChannelModal from './CreateChannelModal'
 import UserSettingsPanel from './UserSettingsPanel'
 import InviteModal from './InviteModal'
+import ServerSettingsModal from './ServerSettingsModal'
 
 export default function ChannelSidebar() {
   const { currentServer, channels, currentChannel, selectChannel } = useApp()
@@ -12,6 +13,8 @@ export default function ChannelSidebar() {
   const [showCreateChannel, setShowCreateChannel] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [showInvite, setShowInvite] = useState(false)
+  const [showServerSettings, setShowServerSettings] = useState(false)
+  const isOwner = currentServer?.owner_id === user?.id
 
   if (!currentServer) return null
 
@@ -22,9 +25,14 @@ export default function ChannelSidebar() {
     <>
       <div className="w-60 bg-dark-secondary flex flex-col shrink-0">
         {/* Server header */}
-        <div className="h-12 px-4 flex items-center border-b border-dark-primary shadow-sm font-semibold text-text-primary cursor-pointer hover:bg-dark-hover">
+        <div
+          className="h-12 px-4 flex items-center border-b border-dark-primary shadow-sm font-semibold text-text-primary cursor-pointer hover:bg-dark-hover"
+          onClick={isOwner ? () => setShowServerSettings(true) : undefined}
+        >
           <span className="truncate flex-1">{currentServer.name}</span>
-          <ChevronDown size={16} className="text-text-muted" />
+          {isOwner
+            ? <Settings size={16} className="text-text-muted" />
+            : <ChevronDown size={16} className="text-text-muted" />}
         </div>
 
         {/* Invite button */}
@@ -108,6 +116,7 @@ export default function ChannelSidebar() {
       {showCreateChannel && <CreateChannelModal onClose={() => setShowCreateChannel(false)} />}
       {showSettings && <UserSettingsPanel onClose={() => setShowSettings(false)} />}
       {showInvite && <InviteModal serverId={currentServer.id} onClose={() => setShowInvite(false)} />}
+      {showServerSettings && <ServerSettingsModal onClose={() => setShowServerSettings(false)} />}
     </>
   )
 }

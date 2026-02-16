@@ -8,7 +8,7 @@ import MessageArea from '../components/MessageArea'
 import MemberList from '../components/MemberList'
 
 export default function MainLayout() {
-  const { currentServer, currentChannel, setOnlineUsers } = useApp()
+  const { currentServer, currentChannel, setOnlineUsers, clearCurrentServer, refreshServers, refreshMembers } = useApp()
 
   const handleWSMessage = useCallback((msg: WSMessage) => {
     if (msg.type === 'presence_list') {
@@ -26,8 +26,15 @@ export default function MainLayout() {
         }
         return next
       })
+    } else if (msg.type === 'server_delete') {
+      clearCurrentServer()
+      refreshServers()
+    } else if (msg.type === 'member_join') {
+      if (currentServer) {
+        refreshMembers(currentServer.id)
+      }
     }
-  }, [setOnlineUsers])
+  }, [setOnlineUsers, clearCurrentServer, refreshServers, refreshMembers, currentServer])
 
   useWebSocket(currentServer?.id ?? null, handleWSMessage)
 

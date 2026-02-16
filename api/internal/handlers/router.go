@@ -27,10 +27,10 @@ func NewRouter(
 
 	authHandler := NewAuthHandler(userRepo, jwtSecret)
 	userHandler := NewUserHandler(userRepo)
-	serverHandler := NewServerHandler(serverRepo, channelRepo)
+	serverHandler := NewServerHandler(serverRepo, channelRepo, wsHub)
 	channelHandler := NewChannelHandler(channelRepo, serverRepo)
 	messageHandler := NewMessageHandler(messageRepo, channelRepo, serverRepo, wsHub)
-	inviteHandler := NewInviteHandler(inviteRepo, serverRepo)
+	inviteHandler := NewInviteHandler(inviteRepo, serverRepo, wsHub)
 	wsHandler := websocket.NewWSHandler(wsHub, allowedOrigins)
 
 	authMiddleware := middleware.NewAuthMiddleware(jwtSecret)

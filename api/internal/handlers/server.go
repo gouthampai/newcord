@@ -4,21 +4,39 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/gocql/gocql"
 	"github.com/gorilla/mux"
 	"newcord/api/internal/db"
 	"newcord/api/internal/middleware"
 	"newcord/api/internal/models"
+	"newcord/api/internal/websocket"
 )
 
 type ServerHandler struct {
 	serverRepo  *db.ServerRepository
 	channelRepo *db.ChannelRepository
+	wsHub       *websocket.Hub
 }
 
-func NewServerHandler(serverRepo *db.ServerRepository, channelRepo *db.ChannelRepository) *ServerHandler {
-	return &ServerHandler{serverRepo: serverRepo, channelRepo: channelRepo}
+func NewServerHandler(serverRepo *db.ServerRepository, channelRepo *db.ChannelRepository, wsHub *websocket.Hub) *ServerHandler {
+	return &ServerHandler{serverRepo: serverRepo, channelRepo: channelRepo, wsHub: wsHub}
+}
+
+func (h *ServerHandler) broadcastWS(serverID gocql.UUID, msgType string, data interface{}) {
+	wsMsg := websocket.Message{
+		Type:     msgType,
+		ServerID: serverID.String(),
+		Data:     data,
+		Timestamp: time.Now(),
+	}
+	payload, err := json.Marshal(wsMsg)
+	if err != nil {
+		log.Printf("error marshaling WS broadcast: %v", err)
+		return
+	}
+	h.wsHub.BroadcastToServer(serverID, payload)
 }
 
 type CreateServerRequest struct {
@@ -187,6 +205,11 @@ func (h *ServerHandler) DeleteServer(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Forbidden: only the server owner can delete it", http.StatusForbidden)
 		return
 	}
+
+	// Broadcast before delete — clients are still connected to the server's hub room
+	h.broadcastWS(serverID, "server_delete", map[string]string{
+		"server_id": serverID.String(),
+	})
 
 	if err := h.serverRepo.Delete(serverID); err != nil {
 		http.Error(w, "Failed to delete server", http.StatusInternalServerError)
