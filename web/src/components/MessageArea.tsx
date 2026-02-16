@@ -23,30 +23,41 @@ export default function MessageArea() {
   const [loading, setLoading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const [userCache, setUserCache] = useState<Record<string, { display_name: string; username: string }>>({})
+  const seenIds = useRef(new Set<string>())
 
   const handleWSMessage = useCallback((msg: WSMessage) => {
-    if (msg.type === 'message' && msg.channel_id === currentChannel?.id) {
-      const data = msg.data as Record<string, string>
-      const newMsg: Message = {
-        id: crypto.randomUUID(),
-        channel_id: msg.channel_id!,
-        user_id: data.user_id || '',
-        content: data.content || '',
-        type: (data.type as Message['type']) || 'text',
-        attachments: [],
-        created_at: msg.timestamp,
-      }
+    if (msg.channel_id !== currentChannel?.id) return
+
+    if (msg.type === 'message_create') {
+      const newMsg = msg.data as unknown as Message
+      if (seenIds.current.has(newMsg.id)) return
+      seenIds.current.add(newMsg.id)
       setMessages(prev => [...prev, newMsg])
+      // Fetch display name if unknown
+      if (newMsg.user_id && !userCache[newMsg.user_id]) {
+        api.getUser(newMsg.user_id).then(u => {
+          setUserCache(prev => ({ ...prev, [newMsg.user_id]: { display_name: u.display_name, username: u.username } }))
+        }).catch(() => {})
+      }
+    } else if (msg.type === 'message_update') {
+      const updated = msg.data as unknown as Message
+      setMessages(prev => prev.map(m => m.id === updated.id ? updated : m))
+    } else if (msg.type === 'message_delete') {
+      const data = msg.data as { id: string }
+      setMessages(prev => prev.filter(m => m.id !== data.id))
     }
-  }, [currentChannel?.id])
+  }, [currentChannel?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useWebSocket(currentServer?.id ?? null, handleWSMessage)
 
   useEffect(() => {
     if (!currentChannel) return
     setLoading(true)
+    seenIds.current.clear()
     api.getMessages(currentChannel.id).then(msgs => {
-      setMessages((msgs || []).reverse())
+      const reversed = (msgs || []).reverse()
+      reversed.forEach(m => seenIds.current.add(m.id))
+      setMessages(reversed)
       // Fetch display names for unique user IDs
       const userIds = [...new Set((msgs || []).map(m => m.user_id))]
       userIds.forEach(uid => {
@@ -69,8 +80,8 @@ export default function MessageArea() {
     const content = input.trim()
     setInput('')
     try {
-      const msg = await api.createMessage(currentChannel.id, { content })
-      setMessages(prev => [...prev, msg])
+      await api.createMessage(currentChannel.id, { content })
+      // Message will arrive via WebSocket broadcast
     } catch { /* message failed */ }
   }
 

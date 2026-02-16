@@ -2,24 +2,44 @@ package handlers
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gocql/gocql"
 	"github.com/gorilla/mux"
 	"newcord/api/internal/db"
 	"newcord/api/internal/middleware"
 	"newcord/api/internal/models"
+	"newcord/api/internal/websocket"
 )
 
 type MessageHandler struct {
 	messageRepo *db.MessageRepository
 	channelRepo *db.ChannelRepository
 	serverRepo  *db.ServerRepository
+	wsHub       *websocket.Hub
 }
 
-func NewMessageHandler(messageRepo *db.MessageRepository, channelRepo *db.ChannelRepository, serverRepo *db.ServerRepository) *MessageHandler {
-	return &MessageHandler{messageRepo: messageRepo, channelRepo: channelRepo, serverRepo: serverRepo}
+func NewMessageHandler(messageRepo *db.MessageRepository, channelRepo *db.ChannelRepository, serverRepo *db.ServerRepository, wsHub *websocket.Hub) *MessageHandler {
+	return &MessageHandler{messageRepo: messageRepo, channelRepo: channelRepo, serverRepo: serverRepo, wsHub: wsHub}
+}
+
+func (h *MessageHandler) broadcastWS(serverID gocql.UUID, msgType string, channelID string, data interface{}) {
+	wsMsg := websocket.Message{
+		Type:      msgType,
+		ChannelID: channelID,
+		ServerID:  serverID.String(),
+		Data:      data,
+		Timestamp: time.Now(),
+	}
+	payload, err := json.Marshal(wsMsg)
+	if err != nil {
+		log.Printf("error marshaling WS broadcast: %v", err)
+		return
+	}
+	h.wsHub.BroadcastToServer(serverID, payload)
 }
 
 type CreateMessageRequest struct {
@@ -80,6 +100,8 @@ func (h *MessageHandler) CreateMessage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to create message", http.StatusInternalServerError)
 		return
 	}
+
+	h.broadcastWS(channel.ServerID, "message_create", channelID.String(), message)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
@@ -191,6 +213,11 @@ func (h *MessageHandler) UpdateMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	channel, chErr := h.channelRepo.GetByID(channelID)
+	if chErr == nil {
+		h.broadcastWS(channel.ServerID, "message_update", channelID.String(), message)
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(message)
 }
@@ -238,6 +265,14 @@ func (h *MessageHandler) DeleteMessage(w http.ResponseWriter, r *http.Request) {
 	if err := h.messageRepo.Delete(channelID, message.CreatedAt, messageID); err != nil {
 		http.Error(w, "Failed to delete message", http.StatusInternalServerError)
 		return
+	}
+
+	channel, chErr := h.channelRepo.GetByID(channelID)
+	if chErr == nil {
+		h.broadcastWS(channel.ServerID, "message_delete", channelID.String(), map[string]string{
+			"id":         messageID.String(),
+			"channel_id": channelID.String(),
+		})
 	}
 
 	w.WriteHeader(http.StatusNoContent)

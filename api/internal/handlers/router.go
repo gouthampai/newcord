@@ -29,7 +29,7 @@ func NewRouter(
 	userHandler := NewUserHandler(userRepo)
 	serverHandler := NewServerHandler(serverRepo)
 	channelHandler := NewChannelHandler(channelRepo, serverRepo)
-	messageHandler := NewMessageHandler(messageRepo, channelRepo, serverRepo)
+	messageHandler := NewMessageHandler(messageRepo, channelRepo, serverRepo, wsHub)
 	inviteHandler := NewInviteHandler(inviteRepo, serverRepo)
 	wsHandler := websocket.NewWSHandler(wsHub, allowedOrigins)
 
