@@ -23,12 +23,14 @@ func NewRouter(
 	serverRepo := db.NewServerRepository(cassandraDB)
 	channelRepo := db.NewChannelRepository(cassandraDB)
 	messageRepo := db.NewMessageRepository(cassandraDB)
+	inviteRepo := db.NewInviteRepository(cassandraDB)
 
 	authHandler := NewAuthHandler(userRepo, jwtSecret)
 	userHandler := NewUserHandler(userRepo)
 	serverHandler := NewServerHandler(serverRepo)
 	channelHandler := NewChannelHandler(channelRepo, serverRepo)
 	messageHandler := NewMessageHandler(messageRepo, channelRepo, serverRepo)
+	inviteHandler := NewInviteHandler(inviteRepo, serverRepo)
 	wsHandler := websocket.NewWSHandler(wsHub, allowedOrigins)
 
 	authMiddleware := middleware.NewAuthMiddleware(jwtSecret)
@@ -61,12 +63,17 @@ func NewRouter(
 	protected.HandleFunc("/users/{id}", userHandler.UpdateUser).Methods("PUT")
 	protected.HandleFunc("/users/{id}", userHandler.DeleteUser).Methods("DELETE")
 
+	protected.HandleFunc("/users/@me/servers", serverHandler.GetMyServers).Methods("GET")
+
 	protected.HandleFunc("/servers", serverHandler.CreateServer).Methods("POST")
 	protected.HandleFunc("/servers/{id}", serverHandler.GetServer).Methods("GET")
 	protected.HandleFunc("/servers/{id}", serverHandler.UpdateServer).Methods("PUT")
 	protected.HandleFunc("/servers/{id}", serverHandler.DeleteServer).Methods("DELETE")
 	protected.HandleFunc("/servers/{id}/members", serverHandler.GetMembers).Methods("GET")
 	protected.HandleFunc("/servers/{id}/members", serverHandler.AddMember).Methods("POST")
+	protected.HandleFunc("/servers/{id}/invites", inviteHandler.CreateInvite).Methods("POST")
+	protected.HandleFunc("/servers/{id}/invites", inviteHandler.GetServerInvites).Methods("GET")
+	protected.HandleFunc("/invites/{code}/join", inviteHandler.JoinViaInvite).Methods("POST")
 
 	protected.HandleFunc("/channels", channelHandler.CreateChannel).Methods("POST")
 	protected.HandleFunc("/channels/{id}", channelHandler.GetChannel).Methods("GET")

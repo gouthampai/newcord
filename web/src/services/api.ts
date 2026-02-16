@@ -70,6 +70,28 @@ export async function addMember(serverId: string, data: { user_id: string; nickn
   return request<Member>(`/servers/${serverId}/members`, { method: 'POST', body: JSON.stringify(data) })
 }
 
+// My Servers
+export async function getMyServers() {
+  return request<Server[]>('/users/@me/servers')
+}
+
+// Invites
+export async function createInvite(serverId: string, data?: { max_uses?: number; expires_in?: number }) {
+  return request<{ id: string; server_id: string; code: string; max_uses: number; uses: number; expires_at: string; created_at: string }>(
+    `/servers/${serverId}/invites`, { method: 'POST', body: JSON.stringify(data || {}) }
+  )
+}
+
+export async function joinInvite(code: string) {
+  return request<Server>(`/invites/${code}/join`, { method: 'POST' })
+}
+
+export async function getServerInvites(serverId: string) {
+  return request<{ id: string; server_id: string; code: string; max_uses: number; uses: number; expires_at: string; created_at: string }[]>(
+    `/servers/${serverId}/invites`
+  )
+}
+
 // Channels
 export async function createChannel(data: { server_id: string; name: string; description?: string; type?: string; position?: number }) {
   return request<Channel>('/channels', { method: 'POST', body: JSON.stringify(data) })

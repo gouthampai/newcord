@@ -215,6 +215,27 @@ func (h *ServerHandler) GetMembers(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(members)
 }
 
+func (h *ServerHandler) GetMyServers(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.GetUserID(r)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	servers, err := h.serverRepo.GetServersByUser(userID)
+	if err != nil {
+		http.Error(w, "Failed to get servers", http.StatusInternalServerError)
+		return
+	}
+
+	if servers == nil {
+		servers = []*models.Server{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(servers)
+}
+
 func (h *ServerHandler) AddMember(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	serverID, err := gocql.ParseUUID(vars["id"])

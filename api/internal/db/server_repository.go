@@ -123,3 +123,29 @@ func (r *ServerRepository) RemoveMember(serverID, userID gocql.UUID) error {
 	query := `DELETE FROM members WHERE server_id = ? AND user_id = ?`
 	return r.db.Session.Query(query, serverID, userID).Exec()
 }
+
+func (r *ServerRepository) GetServersByUser(userID gocql.UUID) ([]*models.Server, error) {
+	// Query members by user_id index to find all server IDs
+	memberQuery := `SELECT server_id FROM members WHERE user_id = ?`
+	iter := r.db.Session.Query(memberQuery, userID).Iter()
+
+	var serverIDs []gocql.UUID
+	var serverID gocql.UUID
+	for iter.Scan(&serverID) {
+		serverIDs = append(serverIDs, serverID)
+	}
+	if err := iter.Close(); err != nil {
+		return nil, fmt.Errorf("error reading member servers: %w", err)
+	}
+
+	var servers []*models.Server
+	for _, sid := range serverIDs {
+		server, err := r.GetByID(sid)
+		if err != nil {
+			continue // server may have been deleted
+		}
+		servers = append(servers, server)
+	}
+
+	return servers, nil
+}

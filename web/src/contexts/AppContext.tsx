@@ -1,5 +1,6 @@
-import { createContext, useContext, useState, useCallback } from 'react'
+import { createContext, useContext, useState, useCallback, useEffect } from 'react'
 import type { Server, Channel, Member } from '../types'
+import { useAuth } from './AuthContext'
 import * as api from '../services/api'
 
 interface AppContextType {
@@ -59,13 +60,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const refreshServers = useCallback(async () => {
-    // The API doesn't have a "list my servers" endpoint, so servers are loaded client-side
-    // This is a no-op; servers are managed locally
+    try {
+      const srvs = await api.getMyServers()
+      setServers(srvs || [])
+    } catch {
+      setServers([])
+    }
   }, [])
 
   const addServer = useCallback((server: Server) => {
     setServers(prev => [...prev, server])
   }, [])
+
+  const { user } = useAuth()
+
+  useEffect(() => {
+    if (user) {
+      refreshServers()
+    }
+  }, [user, refreshServers])
 
   return (
     <AppContext.Provider value={{

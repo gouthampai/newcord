@@ -1,15 +1,17 @@
 import { useState } from 'react'
-import { Hash, Volume2, Plus, ChevronDown, Settings } from 'lucide-react'
+import { Hash, Volume2, Plus, ChevronDown, Settings, UserPlus } from 'lucide-react'
 import { useApp } from '../contexts/AppContext'
 import { useAuth } from '../contexts/AuthContext'
 import CreateChannelModal from './CreateChannelModal'
 import UserSettingsPanel from './UserSettingsPanel'
+import InviteModal from './InviteModal'
 
 export default function ChannelSidebar() {
   const { currentServer, channels, currentChannel, selectChannel } = useApp()
   const { user } = useAuth()
   const [showCreateChannel, setShowCreateChannel] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [showInvite, setShowInvite] = useState(false)
 
   if (!currentServer) return null
 
@@ -25,8 +27,19 @@ export default function ChannelSidebar() {
           <ChevronDown size={16} className="text-text-muted" />
         </div>
 
+        {/* Invite button */}
+        <div className="px-2 pt-3 pb-1">
+          <button
+            onClick={() => setShowInvite(true)}
+            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-[4px] text-text-muted hover:bg-dark-hover hover:text-text-secondary text-sm border-0 bg-transparent cursor-pointer"
+          >
+            <UserPlus size={16} />
+            <span>Invite People</span>
+          </button>
+        </div>
+
         {/* Channels list */}
-        <div className="flex-1 overflow-y-auto px-2 pt-4">
+        <div className="flex-1 overflow-y-auto px-2 pt-2">
           {/* Text channels */}
           <div className="mb-4">
             <div className="flex items-center justify-between px-1 mb-1">
@@ -96,6 +109,7 @@ export default function ChannelSidebar() {
 
       {showCreateChannel && <CreateChannelModal onClose={() => setShowCreateChannel(false)} />}
       {showSettings && <UserSettingsPanel onClose={() => setShowSettings(false)} />}
+      {showInvite && <InviteModal serverId={currentServer.id} onClose={() => setShowInvite(false)} />}
     </>
   )
 }

@@ -146,6 +146,20 @@ func (db *CassandraDB) InitSchema() error {
 		// indexes on users(username) and users(email) already created above
 		// Additional index for member lookups by user_id
 		`CREATE INDEX IF NOT EXISTS ON members (user_id)`,
+
+		`CREATE TABLE IF NOT EXISTS invites (
+			id uuid PRIMARY KEY,
+			server_id uuid,
+			code text,
+			created_by uuid,
+			max_uses int,
+			uses int,
+			expires_at timestamp,
+			created_at timestamp
+		)`,
+
+		`CREATE INDEX IF NOT EXISTS ON invites (code)`,
+		`CREATE INDEX IF NOT EXISTS ON invites (server_id)`,
 	}
 
 	for _, query := range queries {

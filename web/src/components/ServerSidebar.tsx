@@ -1,13 +1,15 @@
 import { useState } from 'react'
-import { Plus, LogOut } from 'lucide-react'
+import { Plus, LogIn, LogOut } from 'lucide-react'
 import { useApp } from '../contexts/AppContext'
 import { useAuth } from '../contexts/AuthContext'
 import CreateServerModal from './CreateServerModal'
+import JoinServerModal from './JoinServerModal'
 
 export default function ServerSidebar() {
   const { servers, currentServer, selectServer } = useApp()
   const { logout } = useAuth()
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [showJoinModal, setShowJoinModal] = useState(false)
 
   return (
     <>
@@ -43,8 +45,18 @@ export default function ServerSidebar() {
         <div
           onClick={() => setShowCreateModal(true)}
           className="w-12 h-12 bg-dark-tertiary rounded-full flex items-center justify-center text-green hover:bg-green hover:text-white hover:rounded-2xl transition-all cursor-pointer"
+          title="Create Server"
         >
           <Plus size={20} />
+        </div>
+
+        {/* Join server button */}
+        <div
+          onClick={() => setShowJoinModal(true)}
+          className="w-12 h-12 bg-dark-tertiary rounded-full flex items-center justify-center text-green hover:bg-green hover:text-white hover:rounded-2xl transition-all cursor-pointer"
+          title="Join Server"
+        >
+          <LogIn size={18} />
         </div>
 
         <div className="flex-1" />
@@ -60,6 +72,7 @@ export default function ServerSidebar() {
       </div>
 
       {showCreateModal && <CreateServerModal onClose={() => setShowCreateModal(false)} />}
+      {showJoinModal && <JoinServerModal onClose={() => setShowJoinModal(false)} />}
     </>
   )
 }
